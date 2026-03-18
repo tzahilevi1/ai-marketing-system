@@ -7,6 +7,7 @@ from api.campaigns import router as campaigns_router
 from api.content import router as content_router
 from api.images import router as images_router
 from api.analytics import router as analytics_router
+from api.agency import router as agency_router
 
 
 @asynccontextmanager
@@ -34,6 +35,7 @@ app.include_router(campaigns_router)
 app.include_router(content_router)
 app.include_router(images_router)
 app.include_router(analytics_router)
+app.include_router(agency_router)
 
 
 @app.get("/health")

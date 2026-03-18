@@ -3,6 +3,7 @@ import Dashboard from './pages/Dashboard'
 import Campaigns from './pages/Campaigns'
 import ContentStudio from './pages/ContentStudio'
 import Analytics from './pages/Analytics'
+import Agency from './pages/Agency'
 
 function Nav() {
   const { pathname } = useLocation()
@@ -11,6 +12,7 @@ function Nav() {
     { to: '/campaigns', label: 'Campaigns' },
     { to: '/content-studio', label: 'Content Studio' },
     { to: '/analytics', label: 'Analytics' },
+    { to: '/agency', label: 'Agency' },
   ]
   return (
     <nav className="bg-white border-b border-gray-200 px-6 py-4">
@@ -43,6 +45,7 @@ export default function App() {
             <Route path="/campaigns" element={<Campaigns />} />
             <Route path="/content-studio" element={<ContentStudio />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/agency" element={<Agency />} />
           </Routes>
         </main>
       </div>
