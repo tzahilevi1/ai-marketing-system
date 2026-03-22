@@ -34,21 +34,37 @@ function Nav() {
   )
 }
 
+function AppShell() {
+  const { pathname } = useLocation()
+  const isAgency = pathname === '/agency'
+
+  if (isAgency) {
+    return (
+      <Routes>
+        <Route path="/agency" element={<Agency />} />
+      </Routes>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <Nav />
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/campaigns" element={<Campaigns />} />
+          <Route path="/content-studio" element={<ContentStudio />} />
+          <Route path="/analytics" element={<Analytics />} />
+        </Routes>
+      </main>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-gray-50">
-        <Nav />
-        <main className="max-w-7xl mx-auto px-6 py-8">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/campaigns" element={<Campaigns />} />
-            <Route path="/content-studio" element={<ContentStudio />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/agency" element={<Agency />} />
-          </Routes>
-        </main>
-      </div>
+      <AppShell />
     </BrowserRouter>
   )
 }
