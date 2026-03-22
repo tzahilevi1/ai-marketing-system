@@ -20,7 +20,7 @@ async def start_agency(background_tasks: BackgroundTasks):
     return {
         "status": "started",
         "agents": [f"{a.emoji} {a.role}" for a in agency.agents.values()],
-        "message": "All 9 agents are now running autonomously",
+        "message": "All 11 agents are now running autonomously",
     }
 
 
