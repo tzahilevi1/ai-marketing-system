@@ -27,7 +27,7 @@ You work with: Code Builder, Bug Detector"""
 
         if self._cycle == 5 and not self._spec_created:
             self._spec_created = True
-            spec = self.think(
+            spec = await self.think(
                 """Create a detailed technical specification for implementing a Campaign Analytics Dashboard feature.
 Include:
 1. API endpoints needed (with request/response schemas)

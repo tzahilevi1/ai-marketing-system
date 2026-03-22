@@ -46,7 +46,7 @@ You report to: Project Manager"""
             await self._handle_ux_task(msg)
 
     async def _handle_ux_task(self, msg):
-        ux_design = self.think(
+        ux_design = await self.think(
             f"""As a world-class UX Designer, create comprehensive UX specifications for:
 
 Task: {msg.subject}
@@ -136,7 +136,7 @@ Stage by stage with emotions, touchpoints, opportunities
         self._cycle += 1
         if self._cycle == 5 and not self._audit_done:
             self._audit_done = True
-            audit = self.think(
+            audit = await self.think(
                 """Conduct a UX audit of an AI Marketing Dashboard application.
 The app has: Dashboard, Campaigns, Content Studio, Analytics, and Agency pages.
 Users are: marketing managers, CMOs, and agency owners.

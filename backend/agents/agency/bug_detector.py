@@ -29,7 +29,7 @@ Severity levels: CRITICAL (security/data loss), HIGH (crashes), MEDIUM (wrong be
 
     async def _review_code(self, msg):
         self._reviews_done += 1
-        review = self.think(
+        review = await self.think(
             f"""Perform a thorough code review:
 
 Code/Feature: {msg.subject}

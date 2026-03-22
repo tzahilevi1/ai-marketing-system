@@ -29,7 +29,7 @@ KPIs you own: ROAS, CPA, LTV, CAC, Margin, Budget Utilization"""
             await self._evaluate_budget_request(msg)
 
     async def _evaluate_budget_request(self, msg):
-        decision = self.think(
+        decision = await self.think(
             f"""Evaluate this budget request as CFO:
 
 Request: {msg.subject}
@@ -64,7 +64,7 @@ APPROVE or REJECT with financial reasoning."""
         self._cycle += 1
         if self._cycle == 8 and not self._report_sent:
             self._report_sent = True
-            report = self.think(
+            report = await self.think(
                 """Generate a financial health report for the AI marketing agency.
 Include:
 - Current quarter budget status (assume $50k total budget)

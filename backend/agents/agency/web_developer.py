@@ -51,7 +51,7 @@ You work with: ux_expert, code_builder, bug_detector, graphic_designer"""
             priority=Priority.HIGH,
         )
 
-        implementation = self.think(
+        implementation = await self.think(
             f"""You are a Senior Web Developer. Implement this task:
 
 Task: {msg.subject}
@@ -95,7 +95,7 @@ Provide:
         )
 
     async def _implement_ux_design(self, msg):
-        code = self.think(
+        code = await self.think(
             f"""Convert this UX design into production React code:
 
 UX Design: {msg.subject}
@@ -121,7 +121,7 @@ Write complete TypeScript React components with:
         self._cycle += 1
         if self._cycle == 4 and not self._init_done:
             self._init_done = True
-            audit = self.think(
+            audit = await self.think(
                 """Perform a technical audit of the AI Marketing System frontend.
 The stack is: React 18, TypeScript, Vite, Tailwind CSS, Recharts, React Query.
 

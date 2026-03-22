@@ -29,7 +29,7 @@ Tech stack: Python/FastAPI backend, React/TypeScript frontend, PostgreSQL, Redis
             await self._process_task(msg)
 
     async def _process_task(self, msg):
-        code = self.think(
+        code = await self.think(
             f"""You received a development task:
 
 Task: {msg.subject}

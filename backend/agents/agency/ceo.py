@@ -27,7 +27,7 @@ You manage: Project Manager, Accountant, Innovation Director"""
 
         # On first cycle, send initial directive to all
         if self._cycle == 1 and not self._directives_sent:
-            directive = self.think(
+            directive = await self.think(
                 "You are starting a new AI marketing campaign project. Send an opening directive to your team. Include: company vision, Q1 goals, priorities, and your expectations. Be inspiring but concise."
             )
             await self.broadcast(
@@ -47,7 +47,7 @@ You manage: Project Manager, Accountant, Innovation Director"""
             )
 
     async def handle_approval_request(self, msg):
-        decision = self.think(
+        decision = await self.think(
             f"As CEO, you received an approval request:\n\nFrom: {msg.from_agent}\nSubject: {msg.subject}\n\nDetails:\n{msg.content}\n\nConsider business impact, cost, and strategy. APPROVE or REJECT with your reasoning.",
         )
         approved = "REJECT" not in decision.upper()

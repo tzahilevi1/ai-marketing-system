@@ -28,7 +28,7 @@ Platforms: TikTok (9:16, 15-60s), Instagram Reels (9:16, 15-90s), YouTube (16:9,
 
     async def _create_video_concept(self, msg):
         self._videos_scripted += 1
-        script = self.think(
+        script = await self.think(
             f"""Create a complete video ad package for:
 
 Brief: {msg.subject}

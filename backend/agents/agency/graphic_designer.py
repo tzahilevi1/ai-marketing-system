@@ -28,7 +28,7 @@ Design philosophy: Clean, modern, conversion-focused. Data-driven design decisio
 
     async def _create_design(self, msg):
         self._designs_created += 1
-        design = self.think(
+        design = await self.think(
             f"""Create a comprehensive design specification for:
 
 Task: {msg.subject}

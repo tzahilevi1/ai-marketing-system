@@ -58,7 +58,7 @@ You manage: Code Requester, Code Builder, Bug Detector, Graphic Designer, Video 
 
         # Every 15 cycles, compile and send status to CEO
         elif self._cycle % 15 == 0:
-            status = self.think(
+            status = await self.think(
                 f"Compile a project status report for the CEO. Tasks completed: {len(self._tasks)}. Focus on progress, risks, and next steps. Keep it under 200 words."
             )
             await self.send(

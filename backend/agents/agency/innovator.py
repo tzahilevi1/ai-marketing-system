@@ -29,7 +29,7 @@ Areas of focus: AI/ML innovations, automation opportunities, UX improvements, ne
 
     async def _generate_ideas(self, context: str = ""):
         self._ideas_submitted += 1
-        ideas = self.think(
+        ideas = await self.think(
             f"""Generate 5 innovative feature ideas for an AI marketing automation platform.
 Context: {context or 'Building a platform that replaces a marketing team with AI agents'}
 

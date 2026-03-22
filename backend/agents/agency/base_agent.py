@@ -10,8 +10,12 @@ from agents.agency.message_bus import Message, MessageBus, MessageType, Priority
 from config import settings
 
 logger = logging.getLogger(__name__)
-client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 MODEL = "claude-sonnet-4-20250514"
+
+
+def _get_client() -> anthropic.Anthropic:
+    """Lazy client creation so env vars are read at call time, not import time."""
+    return anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 
 class BaseAgent(ABC):
@@ -29,15 +33,15 @@ class BaseAgent(ABC):
         self._pending_approvals: dict[str, asyncio.Future] = {}
         self.log = logging.getLogger(f"agency.{self.name}")
 
-    def think(self, prompt: str, context: str = "", max_tokens: int = 2048) -> str:
-        """Ask Claude to think and respond."""
+    def _think_sync(self, prompt: str, context: str = "", max_tokens: int = 2048) -> str:
+        """Synchronous Claude call — run via asyncio.to_thread() to avoid blocking."""
         if context:
             user_content = f"Context:\n{context}\n\n{prompt}"
         else:
             user_content = prompt
         messages = [{"role": "user", "content": user_content}]
         try:
-            response = client.messages.create(
+            response = _get_client().messages.create(
                 model=MODEL,
                 max_tokens=max_tokens,
                 system=self.system_prompt or f"You are {self.role} in an AI marketing agency. Be concise and professional.",
@@ -47,6 +51,10 @@ class BaseAgent(ABC):
         except Exception as e:
             self.log.error(f"Think error: {e}")
             return f"[{self.name}] Error: {e}"
+
+    async def think(self, prompt: str, context: str = "", max_tokens: int = 2048) -> str:
+        """Ask Claude to think without blocking the event loop."""
+        return await asyncio.to_thread(self._think_sync, prompt, context, max_tokens)
 
     async def send(self, to: str, subject: str, content: str, msg_type: MessageType = MessageType.REPORT,
                    data: dict = None, priority: Priority = Priority.NORMAL, requires_approval: bool = False) -> Message:
@@ -86,7 +94,7 @@ class BaseAgent(ABC):
 
     async def handle_approval_request(self, msg: Message) -> tuple[bool, str]:
         """Decide whether to approve a request. Override in subclasses."""
-        decision = self.think(
+        decision = await self.think(
             f"An approval request was received:\n\nFrom: {msg.from_agent}\nSubject: {msg.subject}\n\nDetails:\n{msg.content}\n\nShould you approve this? Reply with APPROVE or REJECT and a brief reason.",
         )
         approved = "APPROVE" in decision.upper()
