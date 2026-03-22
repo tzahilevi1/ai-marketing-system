@@ -1,60 +1,78 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { api } from '../api/client'
 
-interface AgentInfo {
-  name: string
-  role: string
-  emoji: string
-  active: boolean
-}
-
+interface AgentInfo { name: string; role: string; emoji: string; active: boolean }
 interface AgencyMessage {
-  id: string
-  from_agent: string
-  to_agent: string
-  type: string
-  subject: string
-  content: string
-  priority: string
-  timestamp: string
+  id: string; from_agent: string; to_agent: string; type: string
+  subject: string; content: string; priority: string; timestamp: string
 }
 
-const TYPE_CONFIG: Record<string, { color: string; bg: string; icon: string; label: string }> = {
-  task:              { color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',     icon: '📋', label: 'Task' },
-  approval_request:  { color: 'text-amber-700',  bg: 'bg-amber-50 border-amber-200',   icon: '⏳', label: 'Approval' },
-  approval_response: { color: 'text-green-700',  bg: 'bg-green-50 border-green-200',   icon: '✅', label: 'Approved' },
-  report:            { color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', icon: '📊', label: 'Report' },
-  idea:              { color: 'text-pink-700',   bg: 'bg-pink-50 border-pink-200',     icon: '💡', label: 'Idea' },
-  alert:             { color: 'text-red-700',    bg: 'bg-red-50 border-red-200',       icon: '🚨', label: 'Alert' },
-  directive:         { color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-200', icon: '📣', label: 'Directive' },
+const TYPE_META: Record<string, { label: string; icon: string; accent: string; glow: string; pill: string }> = {
+  task:              { label: 'Task',     icon: '⚡', accent: '#3b82f6', glow: '59,130,246',  pill: 'bg-blue-500/15 text-blue-300 ring-1 ring-blue-500/30' },
+  approval_request:  { label: 'Approval', icon: '🔐', accent: '#f59e0b', glow: '245,158,11',  pill: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/30' },
+  approval_response: { label: 'Approved', icon: '✅', accent: '#10b981', glow: '16,185,129',  pill: 'bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/30' },
+  report:            { label: 'Report',   icon: '📊', accent: '#a855f7', glow: '168,85,247',  pill: 'bg-purple-500/15 text-purple-300 ring-1 ring-purple-500/30' },
+  idea:              { label: 'Idea',     icon: '💡', accent: '#ec4899', glow: '236,72,153',  pill: 'bg-pink-500/15 text-pink-300 ring-1 ring-pink-500/30' },
+  alert:             { label: 'Alert',    icon: '🚨', accent: '#ef4444', glow: '239,68,68',   pill: 'bg-red-500/15 text-red-300 ring-1 ring-red-500/30' },
+  directive:         { label: 'Directive',icon: '📣', accent: '#6366f1', glow: '99,102,241',  pill: 'bg-indigo-500/15 text-indigo-300 ring-1 ring-indigo-500/30' },
 }
 
-const PRIORITY_DOT: Record<string, string> = {
-  critical: 'bg-red-500',
-  high:     'bg-orange-400',
-  normal:   'bg-blue-400',
-  low:      'bg-gray-300',
+const AGENT_GRADIENT: Record<string, [string, string]> = {
+  ceo:                ['#6366f1','#818cf8'],
+  project_manager:    ['#3b82f6','#60a5fa'],
+  code_requester:     ['#06b6d4','#22d3ee'],
+  code_builder:       ['#14b8a6','#2dd4bf'],
+  bug_detector:       ['#f43f5e','#fb7185'],
+  innovator:          ['#f59e0b','#fbbf24'],
+  graphic_designer:   ['#d946ef','#e879f9'],
+  video_editor:       ['#8b5cf6','#a78bfa'],
+  accountant:         ['#10b981','#34d399'],
+  web_developer:      ['#0ea5e9','#38bdf8'],
+  ux_expert:          ['#7c3aed','#9c40f7'],
+  campaign_manager:   ['#f97316','#ef4444'],
+  analytics_director: ['#16a34a','#22c55e'],
 }
 
-const AGENT_COLORS: Record<string, string> = {
-  ceo:              'from-indigo-500 to-indigo-600',
-  project_manager:  'from-blue-500 to-blue-600',
-  code_requester:   'from-cyan-500 to-cyan-600',
-  code_builder:     'from-teal-500 to-teal-600',
-  bug_detector:     'from-rose-500 to-rose-600',
-  innovator:        'from-yellow-500 to-orange-500',
-  graphic_designer: 'from-fuchsia-500 to-fuchsia-600',
-  video_editor:     'from-purple-500 to-purple-600',
-  accountant:       'from-emerald-500 to-emerald-600',
-  web_developer:      'from-sky-500 to-sky-600',
-  ux_expert:          'from-violet-500 to-violet-600',
-  campaign_manager:   'from-orange-500 to-red-500',
-  analytics_director: 'from-green-500 to-emerald-600',
+const DEPT: Record<string, string> = {
+  ceo: 'Leadership', project_manager: 'Leadership', accountant: 'Leadership',
+  code_requester: 'Engineering', code_builder: 'Engineering', bug_detector: 'Engineering',
+  web_developer: 'Engineering', ux_expert: 'Design',
+  graphic_designer: 'Design', video_editor: 'Design', innovator: 'Strategy',
+  campaign_manager: 'Marketing', analytics_director: 'Marketing',
 }
 
-function formatTime(ts: string) {
-  try { return new Date(ts).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }
+function fmt(ts: string) {
+  try { return new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) }
   catch { return ts }
+}
+
+function Avatar({ name, emoji, size = 36 }: { name: string; emoji: string; size?: number }) {
+  const [a, b] = AGENT_GRADIENT[name] || ['#4b5563','#6b7280']
+  return (
+    <div style={{
+      width: size, height: size, borderRadius: size * 0.3,
+      background: `linear-gradient(135deg, ${a}, ${b})`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.44, flexShrink: 0,
+      boxShadow: `0 0 ${size * 0.4}px ${a}40`,
+    }}>{emoji}</div>
+  )
+}
+
+function PulsingDot({ active }: { active: boolean }) {
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', width: 8, height: 8 }}>
+      {active && <span style={{
+        position: 'absolute', inset: 0, borderRadius: '50%',
+        background: '#22c55e', opacity: 0.6,
+        animation: 'ping 1.4s cubic-bezier(0,0,0.2,1) infinite',
+      }} />}
+      <span style={{
+        borderRadius: '50%', width: 8, height: 8,
+        background: active ? '#22c55e' : '#374151', display: 'block'
+      }} />
+    </span>
+  )
 }
 
 export default function Agency() {
@@ -63,308 +81,331 @@ export default function Agency() {
   const [running, setRunning] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedMsg, setSelectedMsg] = useState<AgencyMessage | null>(null)
-  const [filter, setFilter] = useState<string>('all')
+  const [filterType, setFilterType] = useState('all')
+  const [filterAgent, setFilterAgent] = useState('all')
   const [taskTarget, setTaskTarget] = useState('ceo')
   const [taskSubject, setTaskSubject] = useState('')
   const [taskContent, setTaskContent] = useState('')
   const [sendingTask, setSendingTask] = useState(false)
   const [autoScroll, setAutoScroll] = useState(true)
   const [totalMsgs, setTotalMsgs] = useState(0)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [showTaskPanel, setShowTaskPanel] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
       const res = await api.get('/agency/status')
       setRunning(res.data.running)
       setAgents(res.data.agents || [])
       setTotalMsgs(res.data.total_messages || 0)
       setMessages(res.data.message_history || [])
-    } catch { /* not started */ }
-  }
-
-  useEffect(() => {
-    fetchStatus()
-    const interval = setInterval(fetchStatus, 2500)
-    return () => clearInterval(interval)
+    } catch { /* silent */ }
   }, [])
 
-  useEffect(() => {
-    if (autoScroll) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, autoScroll])
+  useEffect(() => { fetchStatus(); const t = setInterval(fetchStatus, 2500); return () => clearInterval(t) }, [fetchStatus])
+  useEffect(() => { if (autoScroll && !selectedMsg) bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, autoScroll, selectedMsg])
 
-  const startAgency = async () => {
-    setLoading(true)
-    try { await api.post('/agency/start'); setRunning(true) } finally { setLoading(false) }
-    fetchStatus()
-  }
-
-  const stopAgency = async () => {
-    await api.post('/agency/stop')
-    setRunning(false)
-  }
-
+  const startAgency = async () => { setLoading(true); try { await api.post('/agency/start'); setRunning(true) } finally { setLoading(false) }; fetchStatus() }
+  const stopAgency = async () => { await api.post('/agency/stop'); setRunning(false) }
   const sendTask = async () => {
     if (!taskSubject.trim() || !taskContent.trim()) return
     setSendingTask(true)
-    try {
-      await api.post('/agency/task', { to_agent: taskTarget, subject: taskSubject, content: taskContent })
-      setTaskSubject('')
-      setTaskContent('')
-    } finally { setSendingTask(false) }
+    try { await api.post('/agency/task', { to_agent: taskTarget, subject: taskSubject, content: taskContent }); setTaskSubject(''); setTaskContent(''); setShowTaskPanel(false) }
+    finally { setSendingTask(false) }
   }
 
-  const filtered = filter === 'all'
-    ? messages
-    : messages.filter(m => m.type === filter || m.from_agent === filter || m.to_agent === filter)
+  const filtered = messages.filter(m =>
+    (filterType === 'all' || m.type === filterType) &&
+    (filterAgent === 'all' || m.from_agent === filterAgent || m.to_agent === filterAgent)
+  )
 
-  const typeCounts = messages.reduce((acc, m) => {
-    acc[m.type] = (acc[m.type] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+  const typeCounts = messages.reduce((a, m) => ({ ...a, [m.type]: (a[m.type] || 0) + 1 }), {} as Record<string, number>)
+  const senderCounts = messages.reduce((a, m) => ({ ...a, [m.from_agent]: (a[m.from_agent] || 0) + 1 }), {} as Record<string, number>)
+  const maxCount = Math.max(...Object.values(senderCounts), 1)
 
-  const senderCounts = messages.reduce((acc, m) => {
-    acc[m.from_agent] = (acc[m.from_agent] || 0) + 1
+  const deptGroups = agents.reduce((acc, a) => {
+    const d = DEPT[a.name] || 'Other'
+    if (!acc[d]) acc[d] = []
+    acc[d].push(a)
     return acc
-  }, {} as Record<string, number>)
+  }, {} as Record<string, AgentInfo[]>)
+
+  const lastAlert = messages.filter(m => m.type === 'alert').slice(-1)[0]
 
   return (
-    <div className="fixed inset-0 bg-gray-950 text-gray-100 flex flex-col" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        @keyframes ping { 75%,100% { transform: scale(2); opacity: 0; } }
+        @keyframes slideUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+        .msg-card { animation: slideUp 0.2s ease-out; }
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 4px; }
+        .feed-scroll::-webkit-scrollbar { width: 6px; }
+        .feed-scroll::-webkit-scrollbar-track { background: transparent; }
+        .feed-scroll::-webkit-scrollbar-thumb { background: #1e2433; border-radius: 6px; }
+        .feed-scroll::-webkit-scrollbar-thumb:hover { background: #2d3748; }
+      `}</style>
 
-      {/* Top Bar */}
-      <div className="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-bold shadow-lg shadow-blue-500/30">
-            AI
+      <div style={{ position: 'fixed', inset: 0, background: '#080b12', fontFamily: "'Inter', system-ui, sans-serif", color: '#e2e8f0', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* ── TOP NAV ── */}
+        <header style={{ height: 56, background: 'rgba(10,13,22,0.95)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', paddingInline: 24, gap: 16, flexShrink: 0, zIndex: 50 }}>
+          {/* Brand */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, boxShadow: '0 0 20px #6366f140' }}>⚡</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-0.3px', color: '#f1f5f9' }}>AI Agency</div>
+              <div style={{ fontSize: 10, color: '#475569', fontWeight: 500 }}>Autonomous Marketing Intelligence</div>
+            </div>
           </div>
-          <div>
-            <h1 className="text-sm font-bold text-white tracking-tight">Agency Control Center</h1>
-            <p className="text-xs text-gray-500">{agents.length} agents active &bull; {totalMsgs} messages</p>
+
+          <div style={{ flex: 1 }} />
+
+          {/* Stats pills */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '4px 12px', fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
+              <span style={{ color: '#f1f5f9', fontWeight: 700 }}>{agents.length}</span> Agents
+            </div>
+            <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: '4px 12px', fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>
+              <span style={{ color: '#f1f5f9', fontWeight: 700 }}>{totalMsgs}</span> Messages
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-            running
-              ? 'bg-green-500/10 text-green-400 border-green-500/30'
-              : 'bg-gray-800 text-gray-500 border-gray-700'
-          }`}>
-            <div className={`w-1.5 h-1.5 rounded-full ${running ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
-            {running ? 'Live' : 'Stopped'}
+
+          {/* Status */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: running ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${running ? 'rgba(34,197,94,0.3)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 20, padding: '5px 12px', fontSize: 11, fontWeight: 600, color: running ? '#86efac' : '#64748b' }}>
+            <PulsingDot active={running} />
+            {running ? 'Live' : 'Offline'}
           </div>
+
+          {/* Actions */}
           {!running ? (
-            <button onClick={startAgency} disabled={loading}
-              className="px-5 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-semibold rounded-xl transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20">
-              {loading ? '⏳ Starting...' : '▶ Start Agency'}
+            <button onClick={startAgency} disabled={loading} style={{ height: 34, padding: '0 18px', background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, color: '#fff', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1, boxShadow: '0 0 24px #4f46e550', letterSpacing: '0.2px' }}>
+              {loading ? '...' : '▶ Launch Agency'}
             </button>
           ) : (
-            <button onClick={stopAgency}
-              className="px-5 py-2 bg-red-600/80 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-all">
+            <button onClick={stopAgency} style={{ height: 34, padding: '0 18px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 10, fontSize: 12, fontWeight: 700, color: '#fca5a5', cursor: 'pointer' }}>
               ⏹ Stop
             </button>
           )}
-        </div>
-      </div>
+        </header>
 
-      {/* Main Layout */}
-      <div className="flex flex-1 overflow-hidden">
+        {/* ── BODY ── */}
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-        {/* LEFT: Agents */}
-        <div className="w-60 bg-gray-900 border-r border-gray-800 flex flex-col shrink-0">
-          <div className="px-4 py-3 border-b border-gray-800">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Agents</p>
-          </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-            {agents.map(agent => (
-              <button key={agent.name}
-                onClick={() => setFilter(filter === agent.name ? 'all' : agent.name)}
-                className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl text-left transition-all border ${
-                  filter === agent.name
-                    ? 'bg-gray-700 border-gray-600'
-                    : 'bg-transparent border-transparent hover:bg-gray-800'
-                }`}>
-                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${AGENT_COLORS[agent.name] || 'from-gray-600 to-gray-700'} flex items-center justify-center text-base shrink-0 shadow`}>
-                  {agent.emoji}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-gray-200 truncate leading-tight">{agent.role}</p>
-                  <p className="text-xs text-gray-600 truncate">{agent.name}</p>
-                </div>
-                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${agent.active && running ? 'bg-green-400 animate-pulse' : 'bg-gray-700'}`} />
-              </button>
-            ))}
-          </div>
-
-          {/* Send Task Panel */}
-          <div className="p-3 border-t border-gray-800 space-y-2">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Send Task</p>
-            <select value={taskTarget} onChange={e => setTaskTarget(e.target.value)}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none focus:border-blue-500 transition-colors">
-              {agents.map(a => <option key={a.name} value={a.name}>{a.emoji} {a.role}</option>)}
-            </select>
-            <input value={taskSubject} onChange={e => setTaskSubject(e.target.value)}
-              placeholder="Subject..."
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition-colors" />
-            <textarea value={taskContent} onChange={e => setTaskContent(e.target.value)}
-              placeholder="Describe the task..."
-              rows={3}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500 transition-colors resize-none" />
-            <button onClick={sendTask} disabled={sendingTask || !taskSubject || !taskContent || !running}
-              className="w-full py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-all">
-              {sendingTask ? 'Sending...' : '⚡ Send Task'}
-            </button>
-          </div>
-        </div>
-
-        {/* CENTER: Message Feed */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-
-          {/* Filter Bar */}
-          <div className="bg-gray-900/80 backdrop-blur border-b border-gray-800 px-4 py-2 flex items-center gap-1.5 flex-wrap shrink-0">
-            <button onClick={() => setFilter('all')}
-              className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                filter === 'all' ? 'bg-white text-gray-900' : 'text-gray-500 hover:text-gray-300'
-              }`}>
-              All ({messages.length})
-            </button>
-            {Object.entries(TYPE_CONFIG).map(([type, cfg]) => !typeCounts[type] ? null : (
-              <button key={type} onClick={() => setFilter(filter === type ? 'all' : type)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                  filter === type
-                    ? `${cfg.bg} ${cfg.color} border-current`
-                    : 'border-gray-700 text-gray-500 hover:text-gray-300 hover:border-gray-600'
-                }`}>
-                {cfg.icon} {cfg.label} ({typeCounts[type]})
-              </button>
-            ))}
-            <div className="flex-1" />
-            <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer hover:text-gray-300 transition-colors select-none">
-              <input type="checkbox" checked={autoScroll} onChange={e => setAutoScroll(e.target.checked)}
-                className="w-3 h-3 rounded accent-blue-500" />
-              Auto-scroll
-            </label>
-          </div>
-
-          {/* Messages List */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {filtered.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full text-gray-700 select-none">
-                <div className="text-6xl mb-4">🤖</div>
-                <p className="text-sm font-medium">{running ? 'Agents are thinking...' : 'Start the agency to see agents at work'}</p>
-              </div>
-            )}
-            {filtered.map(msg => {
-              const cfg = TYPE_CONFIG[msg.type] || { color: 'text-gray-400', bg: 'bg-gray-800 border-gray-700', icon: '💬', label: msg.type }
-              const isAlert = msg.type === 'alert'
-              const isSelected = selectedMsg?.id === msg.id
-              return (
-                <div key={msg.id}
-                  className={`flex gap-3 cursor-pointer group transition-all duration-150 ${isSelected ? 'scale-[1.005]' : ''}`}
-                  onClick={() => setSelectedMsg(isSelected ? null : msg)}>
-
-                  {/* Avatar */}
-                  <div className="shrink-0 pt-0.5">
-                    <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${AGENT_COLORS[msg.from_agent] || 'from-gray-600 to-gray-700'} flex items-center justify-center text-sm shadow-md`}>
-                      {agents.find(a => a.name === msg.from_agent)?.emoji || '🤖'}
-                    </div>
-                  </div>
-
-                  {/* Card */}
-                  <div className={`flex-1 rounded-2xl border p-3 transition-all duration-150 ${
-                    isAlert
-                      ? 'bg-red-950/40 border-red-900/60 hover:border-red-800'
-                      : isSelected
-                      ? 'bg-gray-800 border-gray-600'
-                      : 'bg-gray-900 border-gray-800 hover:border-gray-700 hover:bg-gray-800/80'
-                  }`}>
-                    {/* Header */}
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-xs font-bold text-gray-100">{msg.from_agent}</span>
-                      <span className="text-gray-700 text-xs">→</span>
-                      <span className="text-xs text-gray-500">{msg.to_agent}</span>
-                      <div className="flex-1" />
-                      <span className={`text-xs px-2 py-0.5 rounded-full border font-semibold ${cfg.bg} ${cfg.color}`}>
-                        {cfg.icon} {cfg.label}
-                      </span>
-                      <div className={`w-1.5 h-1.5 rounded-full ${PRIORITY_DOT[msg.priority] || 'bg-gray-600'}`} title={`Priority: ${msg.priority}`} />
-                      <span className="text-xs text-gray-600 tabular-nums">{formatTime(msg.timestamp)}</span>
-                    </div>
-
-                    {/* Subject */}
-                    <p className={`text-sm font-medium leading-snug ${isAlert ? 'text-red-300' : 'text-gray-100'}`}>
-                      {msg.subject}
-                    </p>
-
-                    {/* Expanded Content */}
-                    {isSelected && msg.content && (
-                      <div className="mt-3 pt-3 border-t border-gray-700/60">
-                        <div className="max-h-72 overflow-y-auto">
-                          <pre className="text-xs text-gray-300 whitespace-pre-wrap font-sans leading-relaxed">
-                            {msg.content}
-                          </pre>
+          {/* ── LEFT SIDEBAR ── */}
+          <aside style={{ width: 220, background: 'rgba(10,13,22,0.8)', borderRight: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <div className="sidebar-scroll" style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 0' }}>
+              {Object.entries(deptGroups).map(([dept, deptAgents]) => (
+                <div key={dept} style={{ marginBottom: 4 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: '#334155', letterSpacing: '0.8px', textTransform: 'uppercase', padding: '8px 8px 4px' }}>{dept}</div>
+                  {deptAgents.map(agent => {
+                    const isActive = filterAgent === agent.name
+                    const msgCount = senderCounts[agent.name] || 0
+                    return (
+                      <button key={agent.name} onClick={() => setFilterAgent(isActive ? 'all' : agent.name)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '7px 8px', borderRadius: 10, border: 'none', background: isActive ? 'rgba(99,102,241,0.12)' : 'transparent', cursor: 'pointer', transition: 'all 0.15s', outline: isActive ? '1px solid rgba(99,102,241,0.3)' : 'none', textAlign: 'left' }}
+                        onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)' }}
+                        onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
+                        <Avatar name={agent.name} emoji={agent.emoji} size={30} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: isActive ? '#c7d2fe' : '#cbd5e1', lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{agent.role.split('/')[0].trim()}</div>
+                          {msgCount > 0 && <div style={{ fontSize: 9, color: '#475569', fontWeight: 500 }}>{msgCount} msg{msgCount !== 1 ? 's' : ''}</div>}
                         </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-            <div ref={messagesEndRef} />
-          </div>
-        </div>
-
-        {/* RIGHT: Stats */}
-        <div className="w-52 bg-gray-900 border-l border-gray-800 flex flex-col shrink-0 overflow-y-auto">
-          <div className="px-4 py-3 border-b border-gray-800">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Stats</p>
-          </div>
-          <div className="p-4 space-y-4">
-            {/* Message Types */}
-            <div>
-              <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wider">By Type</p>
-              <div className="space-y-1.5">
-                {Object.entries(TYPE_CONFIG).map(([type, cfg]) => (
-                  <div key={type} className="flex items-center justify-between">
-                    <span className={`text-xs flex items-center gap-1 ${cfg.color}`}>
-                      {cfg.icon} {cfg.label}
-                    </span>
-                    <span className="text-xs font-bold text-gray-400 tabular-nums">{typeCounts[type] || 0}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Top Senders */}
-            <div className="pt-3 border-t border-gray-800">
-              <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wider">Top Senders</p>
-              <div className="space-y-1.5">
-                {Object.entries(senderCounts)
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 6)
-                  .map(([agent, count]) => (
-                    <div key={agent} className="flex items-center gap-1.5">
-                      <span className="text-sm">{agents.find(a => a.name === agent)?.emoji || '🤖'}</span>
-                      <span className="text-xs text-gray-500 truncate flex-1">{agent}</span>
-                      <span className="text-xs font-bold text-gray-300 tabular-nums">{count}</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-
-            {/* Last Alert */}
-            <div className="pt-3 border-t border-gray-800">
-              <p className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wider">Last Alert</p>
-              {messages.filter(m => m.type === 'alert').slice(-1).map(m => (
-                <div key={m.id} className="bg-red-950/50 border border-red-900/50 rounded-xl p-2.5">
-                  <p className="text-xs text-red-300 leading-relaxed line-clamp-3">{m.subject}</p>
-                  <p className="text-xs text-gray-600 mt-1">{formatTime(m.timestamp)}</p>
+                        <PulsingDot active={agent.active && running} />
+                      </button>
+                    )
+                  })}
                 </div>
               ))}
-              {!messages.some(m => m.type === 'alert') && (
-                <p className="text-xs text-gray-700">No alerts yet</p>
-              )}
+              <div style={{ height: 8 }} />
+            </div>
+
+            {/* Send task button */}
+            <div style={{ padding: 10, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+              <button onClick={() => setShowTaskPanel(!showTaskPanel)} style={{ width: '100%', height: 36, background: showTaskPanel ? 'rgba(99,102,241,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${showTaskPanel ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, borderRadius: 10, fontSize: 11, fontWeight: 700, color: showTaskPanel ? '#a5b4fc' : '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'all 0.2s' }}>
+                ✉ Send Task
+              </button>
+            </div>
+          </aside>
+
+          {/* ── CENTER: FEED ── */}
+          <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+
+            {/* Filter bar */}
+            <div style={{ height: 44, background: 'rgba(10,13,22,0.6)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', paddingInline: 16, gap: 6, flexShrink: 0, overflowX: 'auto' }}>
+              {(['all', ...Object.keys(TYPE_META)] as string[]).map(type => {
+                const meta = TYPE_META[type]
+                const cnt = type === 'all' ? messages.length : (typeCounts[type] || 0)
+                if (type !== 'all' && cnt === 0) return null
+                const isActive = filterType === type
+                return (
+                  <button key={type} onClick={() => setFilterType(isActive ? 'all' : type)} style={{ height: 26, padding: '0 10px', borderRadius: 20, border: 'none', fontSize: 10, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', background: isActive ? (meta ? meta.accent : '#f1f5f9') : 'rgba(255,255,255,0.05)', color: isActive ? '#fff' : '#64748b', boxShadow: isActive && meta ? `0 0 12px ${meta.accent}50` : 'none' }}>
+                    {meta ? `${meta.icon} ${meta.label}` : 'All'} · {cnt}
+                  </button>
+                )
+              })}
+              <div style={{ flex: 1 }} />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: '#475569', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                <input type="checkbox" checked={autoScroll} onChange={e => setAutoScroll(e.target.checked)} style={{ accentColor: '#6366f1', width: 11, height: 11 }} />
+                Auto-scroll
+              </label>
+            </div>
+
+            {/* Messages */}
+            <div className="feed-scroll" style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {filtered.length === 0 ? (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#1e2a3a', gap: 12 }}>
+                  <div style={{ fontSize: 64 }}>🤖</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{running ? 'Agents are thinking...' : 'Launch the agency to see agents collaborate'}</div>
+                  <div style={{ fontSize: 11, color: '#0f172a' }}>Messages will appear here in real-time</div>
+                </div>
+              ) : filtered.map(msg => {
+                const meta = TYPE_META[msg.type] || TYPE_META.task
+                const agentInfo = agents.find(a => a.name === msg.from_agent)
+                const isSelected = selectedMsg?.id === msg.id
+                const isAlert = msg.type === 'alert'
+
+                return (
+                  <div key={msg.id} className="msg-card" onClick={() => setSelectedMsg(isSelected ? null : msg)} style={{ display: 'flex', gap: 10, cursor: 'pointer' }}>
+                    <Avatar name={msg.from_agent} emoji={agentInfo?.emoji || '🤖'} size={34} />
+                    <div style={{ flex: 1, minWidth: 0, background: isAlert ? 'rgba(239,68,68,0.07)' : isSelected ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isAlert ? 'rgba(239,68,68,0.25)' : isSelected ? 'rgba(99,102,241,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 14, padding: '10px 14px', transition: 'all 0.15s', boxShadow: isSelected ? `0 0 0 1px rgba(99,102,241,0.2)` : 'none' }}
+                      onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
+                      onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.background = isAlert ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.03)'; e.currentTarget.style.borderColor = isAlert ? 'rgba(239,68,68,0.25)' : 'rgba(255,255,255,0.07)' } }}>
+                      {/* Row 1 */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#e2e8f0' }}>{msg.from_agent}</span>
+                        <span style={{ fontSize: 10, color: '#334155' }}>→</span>
+                        <span style={{ fontSize: 10, color: '#475569', fontWeight: 500 }}>{msg.to_agent === 'broadcast' ? '🌐 all' : msg.to_agent}</span>
+                        <div style={{ flex: 1 }} />
+                        <span className={meta.pill} style={{ fontSize: 9, fontWeight: 700, borderRadius: 20, padding: '2px 7px', letterSpacing: '0.3px' }}>{meta.icon} {meta.label}</span>
+                        <span style={{ fontSize: 9, color: '#334155', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{fmt(msg.timestamp)}</span>
+                      </div>
+                      {/* Subject */}
+                      <div style={{ fontSize: 12, fontWeight: 600, color: isAlert ? '#fca5a5' : '#f1f5f9', lineHeight: 1.4, marginBottom: isSelected ? 0 : undefined }}>{msg.subject}</div>
+                      {/* Expanded content */}
+                      {isSelected && msg.content && (
+                        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.07)', maxHeight: 320, overflowY: 'auto', animation: 'fadeIn 0.2s ease' }}>
+                          <pre style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.7, whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>{msg.content}</pre>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+              <div ref={bottomRef} />
+            </div>
+          </main>
+
+          {/* ── RIGHT PANEL: STATS ── */}
+          <aside style={{ width: 220, background: 'rgba(10,13,22,0.8)', borderLeft: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', overflowY: 'auto', flexShrink: 0 }} className="sidebar-scroll">
+            <div style={{ padding: '12px 14px 6px', fontSize: 9, fontWeight: 700, color: '#1e293b', letterSpacing: '1px', textTransform: 'uppercase' }}>Overview</div>
+
+            {/* KPI row */}
+            <div style={{ padding: '0 10px 10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {[
+                { label: 'Total', value: totalMsgs, color: '#6366f1' },
+                { label: 'Alerts', value: typeCounts['alert'] || 0, color: '#ef4444' },
+                { label: 'Tasks', value: typeCounts['task'] || 0, color: '#3b82f6' },
+                { label: 'Reports', value: typeCounts['report'] || 0, color: '#a855f7' },
+              ].map(k => (
+                <div key={k.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: k.color, lineHeight: 1 }}>{k.value}</div>
+                  <div style={{ fontSize: 9, color: '#475569', fontWeight: 600, marginTop: 2 }}>{k.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Activity bar */}
+            <div style={{ padding: '0 14px 14px' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#1e293b', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 8 }}>Activity</div>
+              {Object.entries(TYPE_META).map(([type, meta]) => {
+                const cnt = typeCounts[type] || 0
+                const pct = messages.length ? (cnt / messages.length) * 100 : 0
+                return (
+                  <div key={type} style={{ marginBottom: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                      <span style={{ fontSize: 10, color: '#64748b', fontWeight: 500 }}>{meta.icon} {meta.label}</span>
+                      <span style={{ fontSize: 10, color: '#475569', fontWeight: 700 }}>{cnt}</span>
+                    </div>
+                    <div style={{ height: 3, background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${pct}%`, background: meta.accent, borderRadius: 3, transition: 'width 0.5s ease', boxShadow: `0 0 6px ${meta.accent}80` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Top agents */}
+            <div style={{ padding: '0 14px 14px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: 12 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: '#1e293b', letterSpacing: '0.8px', textTransform: 'uppercase', marginBottom: 8 }}>Most Active</div>
+              {Object.entries(senderCounts).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([name, cnt]) => {
+                const agent = agents.find(a => a.name === name)
+                const [g1] = AGENT_GRADIENT[name] || ['#4b5563','#6b7280']
+                return (
+                  <div key={name} style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
+                    <Avatar name={name} emoji={agent?.emoji || '🤖'} size={22} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                      <div style={{ height: 2, background: 'rgba(255,255,255,0.05)', borderRadius: 2, marginTop: 3 }}>
+                        <div style={{ height: '100%', width: `${(cnt / maxCount) * 100}%`, background: g1, borderRadius: 2, transition: 'width 0.5s ease' }} />
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 10, color: '#475569', fontWeight: 800, minWidth: 18, textAlign: 'right' }}>{cnt}</span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Last alert */}
+            {lastAlert && (
+              <div style={{ margin: '0 10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: 10 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', letterSpacing: '0.6px', textTransform: 'uppercase', marginBottom: 5 }}>🚨 Last Alert</div>
+                <div style={{ fontSize: 10, color: '#fca5a5', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{lastAlert.subject}</div>
+                <div style={{ fontSize: 9, color: '#7f1d1d', marginTop: 4, fontWeight: 600 }}>{fmt(lastAlert.timestamp)}</div>
+              </div>
+            )}
+          </aside>
+        </div>
+
+        {/* ── SEND TASK MODAL ── */}
+        {showTaskPanel && (
+          <div onClick={() => setShowTaskPanel(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fadeIn 0.15s ease' }}>
+            <div onClick={e => e.stopPropagation()} style={{ width: 440, background: '#0d1117', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 24, boxShadow: '0 24px 80px rgba(0,0,0,0.6)', animation: 'slideUp 0.2s ease' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: '#f1f5f9' }}>Send Task</div>
+                  <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>Assign a task to any agent</div>
+                </div>
+                <button onClick={() => setShowTaskPanel(false)} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: '#64748b', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: 6 }}>Assign To</label>
+                  <select value={taskTarget} onChange={e => setTaskTarget(e.target.value)} style={{ width: '100%', background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#e2e8f0', outline: 'none', cursor: 'pointer' }}>
+                    {agents.map(a => <option key={a.name} value={a.name}>{a.emoji} {a.role}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: 6 }}>Subject</label>
+                  <input value={taskSubject} onChange={e => setTaskSubject(e.target.value)} placeholder="Brief task title..." style={{ width: '100%', background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#e2e8f0', outline: 'none', fontFamily: 'inherit' }} onFocus={e => e.target.style.borderColor = '#4f46e5'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 10, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.6px', display: 'block', marginBottom: 6 }}>Instructions</label>
+                  <textarea value={taskContent} onChange={e => setTaskContent(e.target.value)} placeholder="Describe what you need the agent to do..." rows={4} style={{ width: '100%', background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '10px 12px', fontSize: 12, color: '#e2e8f0', outline: 'none', resize: 'none', fontFamily: 'inherit', lineHeight: 1.6 }} onFocus={e => e.target.style.borderColor = '#4f46e5'} onBlur={e => e.target.style.borderColor = 'rgba(255,255,255,0.08)'} />
+                </div>
+                <button onClick={sendTask} disabled={sendingTask || !taskSubject || !taskContent || !running} style={{ height: 44, background: (!taskSubject || !taskContent || !running) ? 'rgba(255,255,255,0.04)' : 'linear-gradient(135deg, #4f46e5, #7c3aed)', border: 'none', borderRadius: 12, fontSize: 13, fontWeight: 700, color: (!taskSubject || !taskContent || !running) ? '#334155' : '#fff', cursor: (!taskSubject || !taskContent || !running) ? 'not-allowed' : 'pointer', transition: 'all 0.2s', boxShadow: (taskSubject && taskContent && running) ? '0 0 24px #4f46e560' : 'none' }}>
+                  {sendingTask ? 'Sending...' : '⚡ Dispatch Task'}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
-    </div>
+    </>
   )
 }
