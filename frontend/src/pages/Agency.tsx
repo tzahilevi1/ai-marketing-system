@@ -46,8 +46,10 @@ const AGENT_COLORS: Record<string, string> = {
   graphic_designer: 'from-fuchsia-500 to-fuchsia-600',
   video_editor:     'from-purple-500 to-purple-600',
   accountant:       'from-emerald-500 to-emerald-600',
-  web_developer:    'from-sky-500 to-sky-600',
-  ux_expert:        'from-violet-500 to-violet-600',
+  web_developer:      'from-sky-500 to-sky-600',
+  ux_expert:          'from-violet-500 to-violet-600',
+  campaign_manager:   'from-orange-500 to-red-500',
+  analytics_director: 'from-green-500 to-emerald-600',
 }
 
 function formatTime(ts: string) {

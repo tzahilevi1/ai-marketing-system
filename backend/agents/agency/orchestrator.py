@@ -15,12 +15,14 @@ from agents.agency.video_editor import VideoEditorAgent
 from agents.agency.accountant import AccountantAgent
 from agents.agency.web_developer import WebDeveloperAgent
 from agents.agency.ux_expert import UXExpertAgent
+from agents.agency.campaign_manager import CampaignManagerAgent
+from agents.agency.analytics_director import AnalyticsDirectorAgent
 
 logger = logging.getLogger("agency.orchestrator")
 
 
 class Agency:
-    """The AI Marketing Agency — 11 agents working together."""
+    """The AI Marketing Agency — 13 agents working together autonomously."""
 
     def __init__(self):
         self.agents = {
@@ -35,6 +37,8 @@ class Agency:
             "accountant": AccountantAgent(bus),
             "web_developer": WebDeveloperAgent(bus),
             "ux_expert": UXExpertAgent(bus),
+            "campaign_manager": CampaignManagerAgent(bus),
+            "analytics_director": AnalyticsDirectorAgent(bus),
         }
         self._tasks: list[asyncio.Task] = []
         self._running = False
