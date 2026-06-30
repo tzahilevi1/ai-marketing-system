@@ -31,3 +31,9 @@ cd ../frontend && npm run dev
 pytest backend/tests/ -v --cov=backend
 cd frontend && npm run test
 ```
+
+## Claude Plugin Setup
+```bash
+/plugin marketplace add claude-plugins-official
+/plugin install superpowers@claude-plugins-official
+```
